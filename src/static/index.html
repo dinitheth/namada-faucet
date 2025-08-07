@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Namada Testnet Faucet</title>
+</head>
+<body>
+  <h1>Namada Faucet</h1>
+  <label>Wallet Address: <input id="address" size="80" placeholder="nam1..." /></label>
+  <label>Amount: <input id="amount" type="number" value="1" min="1" /></label>
+  <button onclick="requestFaucet()">Receive</button>
+  <pre id="output"></pre>
+<script>
+async function requestFaucet() {
+  const output = document.getElementById('output');
+  output.textContent = 'Requesting challenge...';
+  const settings = await fetch('/api/v1/faucet/setting').then(r => r.json());
+  const token = Object.values(settings.tokens_alias_to_address)[0];
+  const challengeResp = await fetch('/api/v1/faucet').then(r => r.json());
+  const challenge = challengeResp.challenge;
+  const tag = challengeResp.tag;
+  const solution = await solvePow(challenge, settings.difficulty, output);
+  const body = {
+    solution,
+    challenge,
+    tag,
+    transfer: {
+      token,
+      target: document.getElementById('address').value,
+      amount: parseInt(document.getElementById('amount').value)
+    }
+  };
+  output.textContent = 'Submitting faucet request...';
+  const res = await fetch('/api/v1/faucet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  output.textContent = JSON.stringify(data, null, 2);
+}
+
+async function solvePow(challenge, difficulty, output) {
+  function hexToBytes(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+  }
+  function hexEncode(buffer) {
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  const challengeBytes = hexToBytes(challenge);
+  let attempts = 0;
+  while (true) {
+    const solution = crypto.getRandomValues(new Uint8Array(8));
+    const input = new Uint8Array(challengeBytes.length + solution.length);
+    input.set(challengeBytes);
+    input.set(solution, challengeBytes.length);
+    const hashBuf = await crypto.subtle.digest('SHA-256', input);
+    const hashHex = hexEncode(hashBuf);
+    if (hashHex.startsWith('0'.repeat(difficulty))) {
+      return hexEncode(solution);
+    }
+    attempts++;
+    if (attempts % 1000 === 0) {
+      output.textContent = `Attempts: ${attempts}`;
+    }
+  }
+}
+</script>
+</body>
+</html>
