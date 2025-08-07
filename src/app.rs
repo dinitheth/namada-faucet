@@ -29,7 +29,10 @@ use tower_http::{
 };
 
 use crate::{app_state::AppState, config::AppConfig, state::faucet::FaucetState};
-use crate::{handler::faucet as faucet_handler, sdk::utils::sk_from_str};
+use crate::{
+    handler::{faucet as faucet_handler, ui},
+    sdk::utils::sk_from_str,
+};
 
 lazy_static! {
     static ref HTTP_TIMEOUT: u64 = 30;
@@ -129,6 +132,7 @@ impl ApplicationServer {
 
         let router = Router::new()
             .nest("/api/v1", routes)
+            .route("/", get(ui::index))
             .merge(Router::new().route(
                 "/health",
                 get(|| async { json!({"commit": env!("VERGEN_GIT_SHA").to_string(), "version": env!("CARGO_PKG_VERSION") }).to_string() }),

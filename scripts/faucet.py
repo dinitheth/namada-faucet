@@ -1,3 +1,4 @@
+import utils.session
 from requests import get, post
 from hashlib import sha256
 import argparse
